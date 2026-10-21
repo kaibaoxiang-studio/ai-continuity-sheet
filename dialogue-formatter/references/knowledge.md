@@ -1,6 +1,6 @@
 # 台词格式字段规则
 
-来源：jimeng-storyboard-v3/references/dialogue-timing.md + leo's/references/performance-direction.md
+本文件规则已内置，独立可用，无需安装其他 skill。
 
 ## 台词固定输出格式
 

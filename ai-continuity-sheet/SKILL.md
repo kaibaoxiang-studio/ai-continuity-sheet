@@ -1,19 +1,25 @@
 ---
 name: ai-continuity-sheet
-description: AI 短剧场记表生成器。输入纯剧本，调用 jimeng-storyboard-v3 与 leos-six-department-directing-team-skill-v1，输出 13 列 Excel 场记表（集数/场次/片段/出场人物/场景/道具/摄影/灯光色卡/台词/时长/微表情情绪指导/动作表演指导/剧情大纲），由 scripts/convert_continuity_sheet.py 生成 .xlsx。用户提到"场记表"、"生成表格"、"分镜表格"或"continuity sheet"时激活。
+description: AI 短剧场记表生成器。输入纯剧本，按内置的剧本解析、状态连续性与导演会诊规则切分 P 段，调度 7 个列级子 skill，输出 13 列 Excel 场记表（集数/场次/片段/出场人物/场景/道具/摄影/灯光色卡/台词/时长/微表情情绪指导/动作表演指导/剧情大纲），由 scripts/convert_continuity_sheet.py 生成 .xlsx。用户提到"场记表"、"生成表格"、"分镜表格"或"continuity sheet"时激活。
 ---
 
 # AI Continuity Sheet
 
-把纯剧本转为两张关联 Markdown 场记表，每行对应一个 P 段（片段），两表共用"集数+场次+片段"作为行 ID。
+把纯剧本转为一张 13 列场记表，每行对应一个 P 段（片段），用"集数+场次+片段"作为行 ID。
 
-## 根目录与隔离
+## 根目录与自包含
 
-将技能加载时提供的 Base directory 记为 `<SKILL_ROOT>`。本 Skill 为编排层，不重新定义任何分镜或导演规则，只负责调度和格式化输出。所有规则归属由被调用的子 Skill 负责。
+将技能加载时提供的 Base directory 记为 `<SKILL_ROOT>`。本 Skill 自包含，不依赖任何外部分镜或导演 skill；所需规则全部在 `<SKILL_ROOT>/references/` 与下表 7 个列级子 skill 中。
+
+| 文件 | 负责 | 读取时机 |
+|------|------|---------|
+| `references/script-parsing.md` | 剧本解析、编号、模式判定、节拍切分、拆 P | 开始切分前 |
+| `references/state-continuity.md` | 出场人物/场景/道具列，跨行状态交接 | 填写这三列时 |
+| `references/directing-pass.md` | 导演命题、Beat、表演谱 | 填写表演列和剧情大纲前 |
 
 ## 角色分工
 
-本 Skill 是编排层，不重新定义任何规则，只负责调度子 Skill 并格式化输出。每列对应一个独立子 Skill，可单独调用：
+本 Skill 负责切分和三列直填，其余每列对应一个独立子 Skill，可单独调用：
 
 | 列 | 子 Skill |
 |----|---------|
@@ -25,7 +31,7 @@ description: AI 短剧场记表生成器。输入纯剧本，调用 jimeng-story
 | 动作表演指导 | `action-performance-director` |
 | 剧情大纲 | `scene-synopsis` |
 
-集数/场次/片段编号、出场人物、场景、道具由本 Skill 直接处理，无需子 Skill。遇到规则冲突以对应子 Skill 的 SKILL.md 为准。
+集数/场次/片段编号、出场人物、场景、道具由本 Skill 按 `references/` 直接处理。子 Skill 缺失时，按本文件"字段填写规则"兜底填写对应列。遇到规则冲突，列格式以对应子 Skill 的 SKILL.md 为准，切分与状态以本 Skill 的 references 为准。
 
 ## 输出规范
 
@@ -79,28 +85,33 @@ description: AI 短剧场记表生成器。输入纯剧本，调用 jimeng-story
 
 未取得回答前不得生成第一行表格数据。
 
-### 第二步：执行 jimeng-storyboard-v3
+### 第二步：解析剧本并切分 P 段
 
-按 jimeng-storyboard-v3 的完整工作流（解析剧本→判定模式→建立状态→切节拍→设计镜头）执行，内部生成完整分镜审稿数据。
+读取 `references/script-parsing.md`：识别场次与标记 → 逐 SC 判定模式 → 切节拍并绑定台词 → 组合成 P 段。每个 P 段就是表格的一行。
 
-### 第三步：执行 leos-six-department-directing-team-skill-v1
+### 第三步：建立状态并导演会诊
 
-对同一剧本逐 SC/P 完成导演会诊：总导演锁定场次命题，表演指导输出刺激-反应链和微动作，镜内执行导演确认群演和环境活性，摄影指导确认机位与光线。不进入提示词生成阶段（本 Skill 用 jimeng-storyboard-v3 负责提示词）。
+1. 读取 `references/state-continuity.md`，逐行填写出场人物、场景、道具，并保持上一行终态 = 下一行起始
+2. 读取 `references/directing-pass.md`，每个 SC 锁定导演命题，逐 P 整理表演谱
 
-### 第四步：提取并生成 Excel 文件
+### 第四步：调度子 Skill 填写其余七列
 
-从两套输出中按字段映射规则逐 P 提取数据，直接调用 `<SKILL_ROOT>/scripts/convert_continuity_sheet.py` 生成 `.xlsx` 文件。步骤：
+逐 P 把对应剧本片段和表演谱交给 7 个列级子 Skill，取回各列单一字段值。
 
-1. 先将主表和导演创作表写入临时 Markdown 文件（`/tmp/continuity_sheet_temp.md`）
+### 第五步：生成 Excel 文件
+
+逐 P 汇总 13 列数据，直接调用 `<SKILL_ROOT>/scripts/convert_continuity_sheet.py` 生成 `.xlsx` 文件。步骤：
+
+1. 先将剧本原文块和统一场记表写入临时 Markdown 文件（`/tmp/continuity_sheet_temp.md`）
 2. 运行转换脚本：
    ```bash
    python3 "<SKILL_ROOT>/scripts/convert_continuity_sheet.py" /tmp/continuity_sheet_temp.md <输出路径>.xlsx
    ```
 3. 输出路径默认与剧本文件同目录，文件名为 `场记表_<集数>.xlsx`
 
-无法运行脚本时（对话环境），退化为输出 Markdown 分表，并提示用户手动运行脚本转换。
+无法运行脚本时（对话环境），退化为输出 Markdown 表格，并提示用户手动运行脚本转换。
 
-### 第五步：人工质量门
+### 第六步：人工质量门
 
 输出前检查：
 - 每行集数+场次+片段编号连续无跳空
@@ -118,7 +129,7 @@ description: AI 短剧场记表生成器。输入纯剧本，调用 jimeng-story
 
 ## 排除范围
 
-- 本 Skill 不生成即梦平台直接复制的 Prompt（由 jimeng-storyboard-v3 负责）
+- 不生成即梦等视频平台直接复制的 Prompt
 - 不处理视频延长、视频编辑、超长视频等专项工作流
 - 不承担现实制作的人员分工、排期或交付管理
-- 不替代 jimeng-storyboard-v3 和 leos-six-department-directing-team-skill-v1 的完整输出；如需完整分镜审稿或导演会诊记录，直接调用对应 Skill
+- 不输出完整分镜审稿或导演会诊记录，只输出场记表

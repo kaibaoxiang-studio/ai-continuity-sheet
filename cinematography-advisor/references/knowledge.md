@@ -1,6 +1,6 @@
 # 摄影字段规则
 
-来源：jimeng-storyboard-v3/references/output-format.md + state-continuity.md + common-performance.md
+本文件规则已内置，独立可用，无需安装其他 skill。
 
 ## 景别体系
 

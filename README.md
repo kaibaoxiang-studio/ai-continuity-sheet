@@ -23,5 +23,5 @@ AI 短剧场记表生成器。输入纯剧本，调度子 skill 填写 13 列，
 
 ## 依赖
 
-- Python 3 + openpyxl（生成 .xlsx）
-- 被主 skill 调用：jimeng-storyboard-v3 与 leos-six-department-directing-team-skill-v1
+- Python 3 + openpyxl（生成 .xlsx）：`pip install openpyxl`
+- 不依赖任何外部 skill。剧本解析、状态连续性、导演会诊规则内置在 `ai-continuity-sheet/references/`

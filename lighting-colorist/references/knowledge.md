@@ -1,6 +1,6 @@
 # 灯光色卡字段规则
 
-来源：jimeng-storyboard-v3/references/state-continuity.md + cinematic-lighting.md
+本文件规则已内置，独立可用，无需安装其他 skill。
 
 ## 最小光源锚点（四项必填）
 
